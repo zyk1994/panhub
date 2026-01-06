@@ -23,6 +23,8 @@ ENV HOST=0.0.0.0
 ENV NITRO_LOG_LEVEL=info
 EXPOSE 3000
 COPY --from=build /app/.output ./.output
+# 创建 data 目录并设置权限（用于 SQLite 持久化）
+RUN mkdir -p /app/data && chmod 777 /app/data
 CMD ["node", "--enable-source-maps", ".output/server/index.mjs"]
 
 

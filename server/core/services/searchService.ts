@@ -44,6 +44,8 @@ export class SearchService {
     cloudTypes: string[] | undefined,
     ext: Record<string, any> | undefined
   ): Promise<SearchResponse> {
+    console.log(`[SearchService] 🔍 用户搜索: "${keyword}"`);
+
     const effChannels =
       channels && channels.length > 0 ? channels : this.options.defaultChannels;
     const effConcurrency =
@@ -320,6 +322,7 @@ export class SearchService {
       this.pluginCache.set(cacheKey, merged, cacheTtlMinutes * 60_000);
     }
 
+    console.log(`[SearchService] ✅ 搜索完成 keyword="${keyword}" total=${merged.length}`);
     return merged;
   }
 

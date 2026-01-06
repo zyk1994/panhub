@@ -38,10 +38,12 @@ export class HotSearchSQLiteService {
       // 确保数据目录存在
       if (!existsSync(this.DB_DIR)) {
         mkdirSync(this.DB_DIR, { recursive: true });
+        console.log(`[HotSearchSQLite] 创建数据目录: ${this.DB_DIR}`);
       }
 
       // 打开数据库（自动创建）
       this.db = new Database(this.DB_PATH);
+      console.log(`[HotSearchSQLite] ✅ SQLite 数据库已初始化: ${this.DB_PATH}`);
 
       // 创建表（如果不存在）
       this.db.exec(`
@@ -54,7 +56,10 @@ export class HotSearchSQLiteService {
         )
       `);
 
+      console.log(`[HotSearchSQLite] ✅ 表结构已创建/验证完成`);
+
     } catch (error) {
+      console.log(`[HotSearchSQLite] ⚠️ 降级到内存模式:`, error instanceof Error ? error.message : error);
       // 降级到内存模式（不持久化）
       this.initMemoryFallback();
     }
@@ -187,6 +192,7 @@ export class HotSearchSQLiteService {
 
     // 违规词检查
     if (await this.isForbidden(term)) {
+      console.log(`[HotSearchSQLite] 违规词被过滤: ${term}`);
       return;
     }
 
@@ -203,11 +209,12 @@ export class HotSearchSQLiteService {
       `);
 
       stmt.run(term, now, now, now);
+      console.log(`[HotSearchSQLite] ✅ 记录搜索词: "${term}"`);
 
       // 清理超出限制的低分记录
       this.cleanupOldEntries();
     } catch (error) {
-      // 静默失败
+      console.log(`[HotSearchSQLite] ❌ 记录搜索词失败:`, error instanceof Error ? error.message : error);
     }
   }
 
@@ -250,9 +257,13 @@ export class HotSearchSQLiteService {
         )
       `);
 
-      stmt.run(this.MAX_ENTRIES);
+      const result = stmt.run(this.MAX_ENTRIES);
+      if (result.changes > 0) {
+        console.log(`[HotSearchSQLite] 清理旧记录: ${result.changes} 条`);
+      }
     } catch (error) {
       // 内存模式可能不支持这个操作，忽略错误
+      console.log(`[HotSearchSQLite] 清理记录失败 (可忽略):`, error instanceof Error ? error.message : error);
     }
   }
 
@@ -339,10 +350,14 @@ export class HotSearchSQLiteService {
       const { statSync } = require('fs');
       if (existsSync(this.DB_PATH)) {
         const stats = statSync(this.DB_PATH);
-        return Math.round((stats.size / (1024 * 1024)) * 100) / 100;
+        const size = Math.round((stats.size / (1024 * 1024)) * 100) / 100;
+        console.log(`[HotSearchSQLite] 数据库大小: ${size} MB`);
+        return size;
+      } else {
+        console.log(`[HotSearchSQLite] 数据库文件不存在: ${this.DB_PATH}`);
       }
     } catch (error) {
-      // 忽略错误
+      console.log(`[HotSearchSQLite] 获取数据库大小失败:`, error instanceof Error ? error.message : error);
     }
     return 0;
   }
