@@ -1,10 +1,10 @@
 import { defineEventHandler } from 'h3';
-import { getOrCreateHotSearchSQLiteService } from '../core/services/hotSearchSQLite';
+import { getOrCreateHotSearchService } from '../core/services/hotSearchService';
 import { existsSync } from 'fs';
 
 export default defineEventHandler(async (event) => {
   try {
-    const service = getOrCreateHotSearchSQLiteService();
+    const service = getOrCreateHotSearchService();
 
     // 获取统计信息
     const stats = await service.getStats();

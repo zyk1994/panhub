@@ -1,0 +1,113 @@
+import type { IHotSearchStore, HotSearchItem, HotSearchStats } from "./hotSearchStore";
+import { SQLiteHotSearchStore } from "./sqliteHotSearchStore";
+import { MemoryHotSearchStore } from "./memoryHotSearchStore";
+
+/**
+ * 热搜服务
+ * 根据环境自动选择 SQLite 或内存存储
+ */
+export class HotSearchService {
+  private store: IHotSearchStore;
+  private storeType: "sqlite" | "memory";
+  private initPromise: Promise<void> | null = null;
+
+  constructor() {
+    // 尝试初始化 SQLite 存储
+    const sqliteStore = new SQLiteHotSearchStore();
+    this.store = sqliteStore;
+    this.storeType = "sqlite";
+
+    // 异步初始化，如果失败则降级到内存存储
+    this.initPromise = this.initializeWithFallback();
+  }
+
+  private async initializeWithFallback(): Promise<void> {
+    try {
+      // 等待 SQLite 初始化
+      await (this.store as SQLiteHotSearchStore)["waitForInit"]?.();
+      console.log("[HotSearchService] ✅ 使用 SQLite 存储模式");
+    } catch (error) {
+      console.log("[HotSearchService] ⚠️ SQLite 初始化失败，降级到内存模式");
+      // 降级到内存存储
+      this.store = new MemoryHotSearchStore();
+      this.storeType = "memory";
+    }
+  }
+
+  private async waitForInit(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
+      this.initPromise = null;
+    }
+  }
+
+  async recordSearch(term: string): Promise<void> {
+    await this.waitForInit();
+    const now = Date.now();
+    await this.store.recordSearch(term, now);
+  }
+
+  async getHotSearches(limit: number = 30): Promise<HotSearchItem[]> {
+    await this.waitForInit();
+    return this.store.getHotSearches(limit);
+  }
+
+  async clearHotSearches(): Promise<{ success: boolean; message: string }> {
+    await this.waitForInit();
+    return this.store.clearHotSearches();
+  }
+
+  async deleteHotSearch(term: string): Promise<{ success: boolean; message: string }> {
+    await this.waitForInit();
+    return this.store.deleteHotSearch(term);
+  }
+
+  async getStats(): Promise<{ total: number; topTerms: HotSearchItem[]; mode: string }> {
+    await this.waitForInit();
+    const stats = await this.store.getStats();
+    return {
+      ...stats,
+      mode: this.storeType,
+    };
+  }
+
+  getDatabaseSize(): number {
+    if (this.storeType === "sqlite" && this.store instanceof SQLiteHotSearchStore) {
+      return this.store.getDatabaseSize();
+    }
+    return 0;
+  }
+
+  getStoreType(): "sqlite" | "memory" {
+    return this.storeType;
+  }
+
+  close(): void {
+    this.store.close();
+  }
+}
+
+// 单例模式
+const HOT_SEARCH_SERVICE_KEY = "__panhub_hot_search_service_v2__";
+
+export function getOrCreateHotSearchService(): HotSearchService {
+  const context = (globalThis as any)[HOT_SEARCH_SERVICE_KEY];
+  if (context?.service) {
+    return context.service;
+  }
+
+  const service = new HotSearchService();
+  (globalThis as any)[HOT_SEARCH_SERVICE_KEY] = { service };
+  return service;
+}
+
+export function resetHotSearchService(): void {
+  const context = (globalThis as any)[HOT_SEARCH_SERVICE_KEY];
+  if (context?.service) {
+    context.service.close();
+  }
+  delete (globalThis as any)[HOT_SEARCH_SERVICE_KEY];
+}
+
+// 向后兼容：导出旧的类型别名
+export type { HotSearchItem, HotSearchStats };

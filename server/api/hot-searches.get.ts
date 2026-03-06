@@ -1,9 +1,9 @@
 import { defineEventHandler, getQuery } from 'h3';
-import { getOrCreateHotSearchSQLiteService } from '../core/services/hotSearchSQLite';
+import { getOrCreateHotSearchService } from '../core/services/hotSearchService';
 
 export default defineEventHandler(async (event) => {
   try {
-    const service = getOrCreateHotSearchSQLiteService();
+    const service = getOrCreateHotSearchService();
 
     // 获取limit参数，默认30
     const query = getQuery(event);

@@ -1,5 +1,5 @@
 import { defineEventHandler, readBody } from 'h3';
-import { getOrCreateHotSearchSQLiteService } from '../core/services/hotSearchSQLite';
+import { getOrCreateHotSearchService } from '../core/services/hotSearchService';
 
 interface RequestBody {
   term: string;
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
     }
 
     console.log('[POST /api/hot-searches] 收到搜索词:', body.term);
-    const service = getOrCreateHotSearchSQLiteService();
+    const service = getOrCreateHotSearchService();
     await service.recordSearch(body.term);
     console.log('[POST /api/hot-searches] ✅ 记录成功:', body.term);
 
