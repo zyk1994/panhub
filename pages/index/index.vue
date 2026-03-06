@@ -251,9 +251,14 @@ async function fullReset() {
 }
 
 // 平台信息
-const platformName = (t: string): string => PLATFORM_INFO[t]?.name || t;
-const platformColor = (t: string): string => PLATFORM_INFO[t]?.color || "#9ca3af";
 const platformIcon = (t: string): string => PLATFORM_INFO[t]?.icon || "📦";
+
+// 获取所有有结果的平台类型
+const platforms = computed(() => {
+  return Object.keys(searchState.value.merged).filter(
+    type => searchState.value.merged[type]?.length > 0
+  );
+});
 
 const groupedResults = computed(() => {
   const list: Array<{ type: string; items: any[] }> = [];
