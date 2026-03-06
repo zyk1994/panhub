@@ -14,31 +14,19 @@ export interface SearchOptions {
 }
 
 export function useSearch() {
-  // 在 SSR 期间，返回一个安全的默认实现
-  if (import.meta.server) {
-    return {
-      searchStore: {
-        loading: false,
-        deepLoading: false,
-        paused: false,
-        error: "",
-        searched: false,
-        elapsedMs: 0,
-        total: 0,
-        merged: {},
-        hasResults: false,
-        platforms: [],
-      },
-      performSearch: async () => {},
-      resetSearch: () => {},
-      copyLink: async () => {},
-      cancelActiveRequests: () => {},
-      pauseSearch: () => {},
-      continueSearch: async () => {},
-    };
-  }
-
   const searchStore = useSearchStore();
+
+  // 使用 storeToRefs 来正确处理响应式
+  const loading = computed(() => searchStore.loading);
+  const deepLoading = computed(() => searchStore.deepLoading);
+  const paused = computed(() => searchStore.paused);
+  const error = computed(() => searchStore.error);
+  const searched = computed(() => searchStore.searched);
+  const elapsedMs = computed(() => searchStore.elapsedMs);
+  const total = computed(() => searchStore.total);
+  const merged = computed(() => searchStore.merged);
+  const hasResults = computed(() => searchStore.hasResults);
+  const platforms = computed(() => searchStore.platforms);
 
   let searchSeq = 0;
   const activeControllers: AbortController[] = [];
@@ -376,7 +364,17 @@ export function useSearch() {
   }
 
   return {
-    searchStore,
+    // 使用 computed 值避免直接访问 store
+    loading,
+    deepLoading,
+    paused,
+    error,
+    searched,
+    elapsedMs,
+    total,
+    merged,
+    hasResults,
+    platforms,
     performSearch,
     resetSearch,
     copyLink,
