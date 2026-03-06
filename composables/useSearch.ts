@@ -151,9 +151,9 @@ export function useSearch() {
       // 忽略错误
     } finally {
       setDeepLoading(false);
+      setLoading(false);
     }
   }
-
   // 合并按类型分组的结果
   function mergeMergedByType(
     target: MergedLinks,
