@@ -381,6 +381,140 @@ export function useSearch() {
     }
   }
 
+  // 使用 SSE 流式搜索
+  function performStreamSearch(options: SearchOptions): {
+    execute: () => Promise<void>;
+    abort: () => void;
+  } {
+    let abortController: AbortController | null = null;
+    let eventSource: EventSource | null = null;
+
+    const execute = async () => {
+      const { apiBase, keyword, settings } = options;
+
+      // 重置状态
+      setLoading(true);
+      setError("");
+      setSearched(true);
+      setElapsedMs(0);
+      setTotal(0);
+      setMerged({});
+      setDeepLoading(true);
+
+      const start = performance.now();
+      let currentMerged: MergedLinks = {};
+      let currentSeq = ++searchSeq;
+
+      // 构建 URL
+      const params = new URLSearchParams({
+        kw: keyword,
+        res: "merged_by_type",
+        src: "all",
+        conc: String(settings.concurrency || 3),
+        refresh: "false",
+        plugins: (settings.enabledPlugins || []).join(","),
+        channels: (settings.enabledTgChannels || []).join(","),
+        ext: JSON.stringify({ __plugin_timeout_ms: settings.pluginTimeoutMs }),
+      });
+
+      const url = `${apiBase}/search-stream?${params.toString()}`;
+
+      return new Promise<void>((resolve, reject) => {
+        try {
+          eventSource = new EventSource(url);
+
+          eventSource.addEventListener("search", (e: MessageEvent) => {
+            try {
+              const data = JSON.parse(e.data);
+              console.log("[SSE] search event:", data);
+            } catch (err) {
+              console.error("[SSE] failed to parse search event:", err);
+            }
+          });
+
+          eventSource.addEventListener("result", (e: MessageEvent) => {
+            if (currentSeq !== searchSeq) {
+              // 新的搜索已开始，忽略当前事件
+              return;
+            }
+
+            try {
+              const data = JSON.parse(e.data);
+              console.log("[SSE] result event:", data);
+
+              if (data.merged_by_type) {
+                currentMerged = mergeMergedByType(currentMerged, data.merged_by_type);
+                setMerged(currentMerged);
+                setTotal(
+                  Object.values(currentMerged).reduce(
+                    (sum, arr) => sum + (arr?.length || 0),
+                    0
+                  )
+                );
+              }
+
+              if (data.isFinal) {
+                console.log(`[SSE] ${data.source} final batch received`);
+              }
+            } catch (err) {
+              console.error("[SSE] failed to parse result event:", err);
+            }
+          });
+
+          eventSource.addEventListener("error", (e: MessageEvent) => {
+            console.error("[SSE] error event:", e);
+            try {
+              const data = JSON.parse(e.data);
+              setError(data.message || "搜索失败");
+            } catch {
+              setError("搜索失败");
+            }
+            cleanup();
+            reject(new Error("SSE error"));
+          });
+
+          eventSource.addEventListener("complete", (e: MessageEvent) => {
+            console.log("[SSE] search complete");
+            cleanup();
+            resolve();
+          });
+
+          // 也处理 open 事件
+          eventSource.onopen = () => {
+            console.log("[SSE] connection opened");
+          };
+
+        } catch (err) {
+          console.error("[SSE] failed to create EventSource:", err);
+          setError("无法建立搜索连接");
+          cleanup();
+          reject(err);
+        }
+      }).finally(() => {
+        setElapsedMs(Math.round(performance.now() - start));
+        setDeepLoading(false);
+        setLoading(false);
+      });
+    };
+
+    const cleanup = () => {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      if (abortController) {
+        abortController.abort();
+        abortController = null;
+      }
+    };
+
+    const abort = () => {
+      cleanup();
+      searchSeq++; // 使当前搜索失效
+    };
+
+    return { execute, abort };
+  }
   // 主搜索函数
   async function performSearch(options: SearchOptions): Promise<void> {
     const { keyword, settings } = options;
@@ -512,6 +646,7 @@ export function useSearch() {
     merged,
     hasResults,
     performSearch,
+    performStreamSearch,
     resetSearch,
     copyLink,
     cancelActiveRequests,

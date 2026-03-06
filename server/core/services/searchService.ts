@@ -392,7 +392,7 @@ export class SearchService {
     return 0;
   }
 
-  private mergeResultsByType(
+  public mergeResultsByType(
     results: SearchResult[],
     _keyword: string,
     cloudTypes?: string[]
@@ -448,6 +448,188 @@ export class SearchService {
     return this.errorCollector.getWarnings();
   }
 
+
+  // 流式搜索 TG 频道
+  async searchTGStream(
+    keyword: string,
+    channels: string[] | undefined,
+    forceRefresh: boolean,
+    concurrency: number | undefined,
+    ext: Record<string, any> | undefined,
+    onProgress: (results: SearchResult[], isBatch: boolean) => void
+  ): Promise<SearchResult[]> {
+    const chList = Array.isArray(channels) ? channels : [];
+    const cacheKey = `tg:${keyword}:${[...chList].sort().join(",")}`;
+    const { cacheEnabled, priorityChannels } = this.options;
+
+    // 缓存检查
+    if (!forceRefresh && cacheEnabled) {
+      const cached = this.cache.get(CacheNamespace.TG_SEARCH, cacheKey);
+      if (cached.hit && cached.value) {
+        onProgress(cached.value, true);
+        return cached.value;
+      }
+    }
+
+    const { fetchTgChannelPosts } = await import("./tg");
+    const perChannelLimit = 30;
+    const requestedTimeout = Number((ext as any)?.__plugin_timeout_ms) || 0;
+    const timeoutMs = Math.max(
+      3000,
+      requestedTimeout > 0
+        ? requestedTimeout
+        : this.options.pluginTimeoutMs || 0
+    );
+    const effConcurrency = Math.max(2, Math.min(concurrency ?? this.options.defaultConcurrency, 12));
+
+    const prioritySet = new Set(priorityChannels || []);
+    const priorityList = chList.filter((ch) => prioritySet.has(ch));
+    const normalList = chList.filter((ch) => !prioritySet.has(ch));
+
+    const createChannelTask = (channel: string) => async () => {
+      const result = await safeExecute(
+        () =>
+          this.withTimeout<SearchResult[]>(
+            fetchTgChannelPosts(channel, keyword, {
+              limitPerChannel: perChannelLimit,
+            }),
+            timeoutMs,
+            []
+          ),
+        []
+      );
+      return result;
+    };
+
+    // 所有频道任务
+    const allTasks = [...priorityList, ...normalList].map(createChannelTask);
+    
+    // 分批执行，每批完成后立即推送
+    const limitFn = pLimit(effConcurrency);
+    let allResults: SearchResult[] = [];
+    
+    for (const task of allTasks) {
+      const result = await limitFn(task);
+      if (Array.isArray(result) && result.length > 0) {
+        allResults.push(...result);
+        onProgress(result, false); // 每个频道完成时推送
+      }
+    }
+
+    if (cacheEnabled && allResults.length > 0) {
+      this.cache.set(CacheNamespace.TG_SEARCH, cacheKey, allResults);
+    }
+
+    // 最终推送所有结果
+    onProgress(allResults, true);
+    return allResults;
+  }
+
+  // 流式搜索插件
+  async searchPluginsStream(
+    keyword: string,
+    plugins: string[] | undefined,
+    forceRefresh: boolean,
+    concurrency: number,
+    ext: Record<string, any>,
+    onProgress: (results: SearchResult[], pluginName: string) => void
+  ): Promise<SearchResult[]> {
+    const cacheKey = `plugin:${keyword}:${(plugins ?? [])
+      .map((p) => p?.toLowerCase())
+      .filter(Boolean)
+      .sort()
+      .join(",")}`;
+    const { cacheEnabled } = this.options;
+
+    if (!forceRefresh && cacheEnabled) {
+      const cached = this.cache.get(CacheNamespace.PLUGIN_SEARCH, cacheKey);
+      if (cached.hit && cached.value) {
+        onProgress(cached.value, "all");
+        return cached.value;
+      }
+    }
+
+    const allPlugins = this.pluginManager.getPlugins();
+    const healthyPlugins = allPlugins.filter((p) => 
+      this.healthChecker.isHealthy(p.name())
+    );
+    
+    let available: typeof allPlugins = [];
+    if (plugins && plugins.length > 0 && plugins.some((p) => !!p)) {
+      const wanted = new Set(plugins.map((p) => p.toLowerCase()));
+      available = healthyPlugins.filter((p) => wanted.has(p.name().toLowerCase()));
+    } else {
+      available = healthyPlugins;
+    }
+
+    const requestedTimeout = Number((ext as any)?.__plugin_timeout_ms) || 0;
+    const timeoutMs = Math.max(
+      3000,
+      requestedTimeout > 0
+        ? requestedTimeout
+        : this.options.pluginTimeoutMs || 0
+    );
+
+    // 每个插件单独执行，完成后立即推送
+    const limitFn = pLimit(concurrency);
+    let allResults: SearchResult[] = [];
+    
+    for (const plugin of available) {
+      const pluginTask = async () => {
+        plugin.setMainCacheKey(cacheKey);
+        plugin.setCurrentKeyword(keyword);
+
+        const startTime = Date.now();
+        const pluginName = plugin.name();
+
+        let results = await this.withTimeout<SearchResult[]>(
+          plugin.search(keyword, ext),
+          timeoutMs,
+          []
+        );
+
+        const responseTime = Date.now() - startTime;
+        if (results && results.length > 0) {
+          this.healthChecker.recordSuccess(pluginName, responseTime);
+        } else {
+          this.healthChecker.recordFailure(pluginName);
+        }
+
+        // 短关键词兜底
+        if (
+          (!results || results.length === 0) &&
+          (keyword || "").trim().length <= 1
+        ) {
+          const fallbacks = ["电影", "movie", "1080p"];
+          for (const fb of fallbacks) {
+            const fallbackResults = await this.withTimeout<SearchResult[]>(
+              plugin.search(fb, ext),
+              timeoutMs,
+              []
+            );
+            if (fallbackResults && fallbackResults.length > 0) {
+              results = fallbackResults;
+              break;
+            }
+          }
+        }
+
+        return { results: results || [], pluginName };
+      };
+
+      const { results, pluginName } = await limitFn(pluginTask);
+      if (results.length > 0) {
+        allResults.push(...results);
+        onProgress(results, pluginName); // 每个插件完成时推送
+      }
+    }
+
+    if (cacheEnabled && allResults.length > 0) {
+      this.cache.set(CacheNamespace.PLUGIN_SEARCH, cacheKey, allResults);
+    }
+
+    return allResults;
+  }
   clearErrors(source?: string) {
     this.errorCollector.clear(source);
   }

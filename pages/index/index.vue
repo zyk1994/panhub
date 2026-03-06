@@ -195,9 +195,11 @@ const initialVisible = 3;
 const expandedSet = ref<Set<string>>(new Set());
 
 // 使用搜索 composable
+// 使用搜索 composable
 const {
   state: searchState,
   performSearch,
+  performStreamSearch,
   resetSearch,
   copyLink,
   pauseSearch,
@@ -220,12 +222,13 @@ function getSearchOptions() {
   };
 }
 
-// 搜索执行
+// 搜索执行 - 使用 SSE 流式搜索
 async function onSearch() {
   if (!kw.value || searchState.loading) return;
 
-  // 执行搜索（内部会记录热搜词）
-  await performSearch(getSearchOptions());
+  // 使用流式搜索
+  const streamSearch = performStreamSearch(getSearchOptions());
+  await streamSearch.execute();
 }
 
 // 快速搜索
