@@ -204,9 +204,9 @@ const {
   continueSearch,
   hasResults,
 } = useSearch();
-const { settings } = useSettings();
+const { settings, loadSettings } = useSettings();
 
-// 获取搜索选项
+// 获取搜索选项（使用最新的用户设置）
 function getSearchOptions() {
   return {
     apiBase,
@@ -224,7 +224,9 @@ function getSearchOptions() {
 async function onSearch() {
   if (!kw.value || searchState.loading) return;
 
-  // 执行搜索（内部会记录热搜词）
+  // 搜索前同步最新设置（兜底：如多标签页修改过 localStorage）
+  loadSettings();
+
   await performSearch(getSearchOptions());
 }
 
@@ -237,6 +239,7 @@ async function quickSearch(keyword: string) {
 // 继续搜索（从暂停处继续）
 async function handleContinueSearch() {
   if (!searchState.paused) return;
+  loadSettings();
   await continueSearch(getSearchOptions());
 }
 
