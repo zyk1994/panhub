@@ -220,12 +220,24 @@ function getSearchOptions() {
   };
 }
 
+// 记录热搜词并刷新展示
+async function recordHotSearch(keyword: string) {
+  const term = keyword?.trim();
+  if (!term) return;
+  try {
+    await $fetch(`${apiBase}/hot-searches`, { method: "POST", body: { term } });
+    hotSearchRef.value?.refresh();
+  } catch (_e) {}
+}
+
 // 搜索执行
 async function onSearch() {
   if (!kw.value || searchState.loading) return;
 
-  // 搜索前同步最新设置（兜底：如多标签页修改过 localStorage）
   loadSettings();
+
+  const keyword = kw.value.trim();
+  recordHotSearch(keyword); // 并行：记录热搜不阻塞搜索
 
   await performSearch(getSearchOptions());
 }
@@ -249,6 +261,7 @@ async function fullReset() {
   resetSearch();
   // 重置时刷新热搜数据
   if (hotSearchRef.value) {
+    hotSearchRef.value.refresh();
   }
 }
 

@@ -2,6 +2,17 @@ import type { IHotSearchStore, HotSearchItem, HotSearchStats } from "./hotSearch
 import { SQLiteHotSearchStore } from "./sqliteHotSearchStore";
 import { MemoryHotSearchStore } from "./memoryHotSearchStore";
 
+// 模块级共享内存存储：确保同一进程内所有降级到内存的情况使用同一实例
+// 解决 service 重建时数据丢失问题（本地开发）
+let sharedMemoryStore: MemoryHotSearchStore | null = null;
+
+function getOrCreateSharedMemoryStore(): MemoryHotSearchStore {
+  if (!sharedMemoryStore) {
+    sharedMemoryStore = new MemoryHotSearchStore();
+  }
+  return sharedMemoryStore;
+}
+
 /**
  * 热搜服务
  * 根据环境自动选择 SQLite 或内存存储
@@ -28,8 +39,8 @@ export class HotSearchService {
       console.log("[HotSearchService] ✅ 使用 SQLite 存储模式");
     } catch (error) {
       console.log("[HotSearchService] ⚠️ SQLite 初始化失败，降级到内存模式");
-      // 降级到内存存储
-      this.store = new MemoryHotSearchStore();
+      // 降级到共享内存存储（同一进程内复用，避免 service 重建导致数据丢失）
+      this.store = getOrCreateSharedMemoryStore();
       this.storeType = "memory";
     }
   }
@@ -107,6 +118,7 @@ export function resetHotSearchService(): void {
     context.service.close();
   }
   delete (globalThis as any)[HOT_SEARCH_SERVICE_KEY];
+  // 不重置 sharedMemoryStore，保持内存数据（用于测试时需单独清理）
 }
 
 // 向后兼容：导出旧的类型别名

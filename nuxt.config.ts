@@ -39,6 +39,8 @@ export default defineNuxtConfig({
       : process.env.NITRO_PRESET || "cloudflare-module",
   },
   routeRules: {
+    // 热搜接口不缓存，否则 POST 写入后 GET 仍返回旧数据
+    "/api/hot-searches": { swr: false, cache: false },
     "/**": { swr: 3600 },
   },
   runtimeConfig: {

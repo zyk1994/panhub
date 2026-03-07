@@ -122,8 +122,8 @@ function onSearchClick(term: string) {
 
 // 暴露方法给父组件
 defineExpose({
-  init,           // 首次初始化（只执行一次）
-  refresh         // 手动刷新
+  init,
+  refresh,
 });
 </script>
 
