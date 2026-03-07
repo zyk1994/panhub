@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PanHub is a Nuxt.js 4 web application that aggregates search results from Telegram channels and various plugins to find cloud storage resources (Aliyun, Quark, Baidu, 115, Xunlei, etc.). The application supports priority-based batch processing, LRU caching, SQLite hot search persistence, and can be deployed to Vercel, Cloudflare Workers, or Docker.
+PanHub is a Nuxt.js 4 web application that aggregates search results from Telegram channels and various plugins to find cloud storage resources (Aliyun, Quark, Baidu, 115, Xunlei, etc.). The application supports priority-based batch processing, LRU caching, JSON file hot search persistence (with memory fallback), and can be deployed to Vercel, Cloudflare Workers, or Docker.
 
 ## Package Manager
 
@@ -40,7 +40,7 @@ The search system uses a two-tier architecture:
 
 - **`services/searchService.ts`**: Main search orchestrator with priority batching, caching, timeout control
 - **`services/tg.ts`**: Telegram channel post fetching with Cheerio parsing
-- **`services/hotSearchSQLite.ts`**: Hot search persistence (SQLite with memory fallback)
+- **`services/jsonFileHotSearchStore.ts`**: Hot search persistence (JSON file with memory fallback)
 - **`cache/memoryCache.ts`**: LRU cache with memory monitoring, TTL-based expiration, smart cleanup
 - **`plugins/manager.ts`**: Plugin registry and lifecycle management
 - **`plugins/*.ts`**: Individual search plugins (pansearch, qupansou, panta, etc.)
@@ -54,8 +54,8 @@ The search system uses a two-tier architecture:
 
 ### Deployment-Specific Behavior
 
-- **Vercel/Cloudflare Workers**: Memory-only mode for hot searches (no SQLite)
-- **Docker**: Full SQLite support with `better-sqlite3` compilation during build
+- **Vercel/Cloudflare Workers**: Memory-only mode for hot searches (no persistent filesystem)
+- **Docker/Local**: JSON file persistence at `./data/hot-searches.json`
 - **Nitro preset**: Auto-detected via `NITRO_PRESET` env var or platform detection
 
 ## TypeScript & Vue Conventions
@@ -74,8 +74,8 @@ The search system uses a two-tier architecture:
 
 ## Important Constraints
 
-- **better-sqlite3**: Requires native compilation in Docker (python3, make, g++, gcc)
-- **Cloudflare Workers**: No SQLite support, hot searches fall back to memory mode
+- **Hot search storage**: JSON file (Docker/local) or memory (Vercel/CF Workers)
+- **Cloudflare Workers**: No persistent filesystem, hot searches fall back to memory mode
 - **Cache keys**: Format `tg:${keyword}:${channels}` or `plugin:${keyword}:${plugins}`
 - **Concurrency**: Priority channels use 2x concurrency vs normal channels
 

@@ -8,24 +8,24 @@ export default defineEventHandler(async (event) => {
 
     // 获取统计信息
     const stats = await service.getStats();
-    const dbSize = service.getDatabaseSize();
+    const fileSizeMB = service.getDatabaseSize();
 
-    // 检查数据库文件是否存在
-    const dbExists = existsSync('./data/hot-searches.db');
+    // 检查 JSON 文件是否存在
+    const fileExists = existsSync('./data/hot-searches.json');
 
-    // 检查是否在内存模式（通过检查是否有数据库方法）
-    const isMemoryMode = !service['db']?.close;
+    const storeType = service.getStoreType();
+    const isMemoryMode = storeType === 'memory';
 
     return {
       code: 0,
       message: 'success',
       data: {
         stats,
-        dbSizeMB: dbSize,
-        dbExists,
+        dbSizeMB: fileSizeMB,
+        dbExists: fileExists,
         isMemoryMode,
-        dbPath: './data/hot-searches.db',
-        mode: isMemoryMode ? 'memory' : 'sqlite'
+        dbPath: './data/hot-searches.json',
+        mode: storeType
       }
     };
   } catch (error) {

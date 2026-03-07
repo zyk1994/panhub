@@ -86,7 +86,7 @@ pnpm build        # 构建生产版
 server/core/
 ├── cache/memoryCache.ts      # LRU 缓存系统
 ├── services/searchService.ts # 搜索服务（优先级批处理）
-├── services/hotSearchSQLite.ts # SQLite 热搜持久化
+├── services/jsonFileHotSearchStore.ts # JSON 文件热搜持久化
 ├── services/tg.ts            # TG 频道抓取
 ├── plugins/manager.ts        # 插件管理器
 └── utils/fetch.ts            # 网络请求（重试+超时）
@@ -94,7 +94,7 @@ server/core/
 
 ### 热搜系统
 ```
-用户搜索 → useSearch.ts → 记录到 SQLite → GET /api/hot-searches → 标签云展示
+用户搜索 → useSearch.ts → 记录到 JSON 文件 → GET /api/hot-searches → 标签云展示
 ```
 
 **特点**：不分类，所有搜索词统一展示为智能标签云，按频次决定视觉权重。

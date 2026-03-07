@@ -1,5 +1,5 @@
 import type { IHotSearchStore, HotSearchItem, HotSearchStats } from "./hotSearchStore";
-import { SQLiteHotSearchStore } from "./sqliteHotSearchStore";
+import { JsonFileHotSearchStore } from "./jsonFileHotSearchStore";
 import { MemoryHotSearchStore } from "./memoryHotSearchStore";
 
 // 模块级共享内存存储：确保同一进程内所有降级到内存的情况使用同一实例
@@ -15,18 +15,18 @@ function getOrCreateSharedMemoryStore(): MemoryHotSearchStore {
 
 /**
  * 热搜服务
- * 根据环境自动选择 SQLite 或内存存储
+ * 根据环境自动选择 JSON 文件或内存存储
  */
 export class HotSearchService {
   private store: IHotSearchStore;
-  private storeType: "sqlite" | "memory";
+  private storeType: "json" | "memory";
   private initPromise: Promise<void> | null = null;
 
   constructor() {
-    // 尝试初始化 SQLite 存储
-    const sqliteStore = new SQLiteHotSearchStore();
-    this.store = sqliteStore;
-    this.storeType = "sqlite";
+    // 尝试初始化 JSON 文件存储
+    const jsonStore = new JsonFileHotSearchStore();
+    this.store = jsonStore;
+    this.storeType = "json";
 
     // 异步初始化，如果失败则降级到内存存储
     this.initPromise = this.initializeWithFallback();
@@ -34,11 +34,11 @@ export class HotSearchService {
 
   private async initializeWithFallback(): Promise<void> {
     try {
-      // 等待 SQLite 初始化
-      await (this.store as SQLiteHotSearchStore)["waitForInit"]?.();
-      console.log("[HotSearchService] ✅ 使用 SQLite 存储模式");
-    } catch (error) {
-      console.log("[HotSearchService] ⚠️ SQLite 初始化失败，降级到内存模式");
+      // 等待 JSON 文件存储初始化
+      await (this.store as JsonFileHotSearchStore)["waitForInit"]?.();
+      console.log("[HotSearchService] ✅ 使用 JSON 文件存储模式");
+    } catch {
+      console.log("[HotSearchService] ⚠️ JSON 文件初始化失败，降级到内存模式");
       // 降级到共享内存存储（同一进程内复用，避免 service 重建导致数据丢失）
       this.store = getOrCreateSharedMemoryStore();
       this.storeType = "memory";
@@ -83,13 +83,13 @@ export class HotSearchService {
   }
 
   getDatabaseSize(): number {
-    if (this.storeType === "sqlite" && this.store instanceof SQLiteHotSearchStore) {
-      return this.store.getDatabaseSize();
+    if (this.storeType === "json" && this.store instanceof JsonFileHotSearchStore) {
+      return this.store.getFileSize();
     }
     return 0;
   }
 
-  getStoreType(): "sqlite" | "memory" {
+  getStoreType(): "json" | "memory" {
     return this.storeType;
   }
 

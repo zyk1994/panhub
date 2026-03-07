@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "term": "高分词",
+      "score": 3,
+      "lastSearched": 1772895787314,
+      "createdAt": 1772895787290
+    },
+    {
+      "term": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "score": 1,
+      "lastSearched": 1772895787330,
+      "createdAt": 1772895787330
+    },
+    {
+      "term": "低分词",
+      "score": 1,
+      "lastSearched": 1772895787321,
+      "createdAt": 1772895787321
+    }
+  ],
+  "updatedAt": 1772895787331
+}
