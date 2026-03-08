@@ -11,7 +11,9 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY package.json pnpm-lock.yaml ./
 
 # 安装依赖（frozen-lockfile 确保与 pnpm-lock 完全一致）
-RUN pnpm install --frozen-lockfile
+# 使用 BuildKit cache mount 加速 pnpm store 复用
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # 复制源码并构建
 COPY . .
