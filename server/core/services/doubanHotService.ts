@@ -39,6 +39,12 @@ function buildCacheKey(categories: string[]): string {
   return `douban-hot:${[...categories].sort().join(",")}`;
 }
 
+/** 豆瓣 CDN 实际返回 webp，页面里的 .jpg 需替换为 .webp */
+function fixDoubanCoverUrl(url: string): string {
+  if (!url || !url.includes("doubanio.com")) return url;
+  return url.replace(/\.jpg$/i, ".webp");
+}
+
 export function extractSearchTerm(title: string): string {
   return title.replace(/^【[\d.]+】/, "").trim() || title;
 }
@@ -69,10 +75,13 @@ async function scrapeDoubanMovie(): Promise<DoubanHotItem[]> {
       img.attr("src") ||
       undefined;
 
+    const coverUrl = cover
+      ? fixDoubanCoverUrl(cover.startsWith("//") ? "https:" + cover : cover)
+      : undefined;
     items.push({
       id: id || undefined,
       title,
-      cover: cover ? (cover.startsWith("//") ? "https:" + cover : cover) : undefined,
+      cover: coverUrl,
       desc: dom.find("p.pl").text().trim(),
       hot: getNumbers(dom.find("span.pl").text()),
       url: href || `https://movie.douban.com/subject/${id}/`,

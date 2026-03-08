@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
     headers: {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       Referer: "https://movie.douban.com/",
+      Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
     },
     timeout: 8000,
   });
