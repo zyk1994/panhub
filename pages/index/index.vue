@@ -22,7 +22,7 @@
         </div>
         <div class="hero-shape" aria-hidden="true" />
       </header>
-      <aside v-if="!searchState.searched" class="hero-aside">
+      <aside class="hero-aside">
         <HotSearchSection ref="hotSearchRef" :on-search="quickSearch" />
       </aside>
     </div>
